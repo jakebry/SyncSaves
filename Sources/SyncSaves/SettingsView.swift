@@ -254,9 +254,7 @@ struct SettingsView: View {
         .frame(width: 500, height: 700)
         #endif
         .sheet(isPresented: $showingMappingsList) {
-            // Game mappings view would be implemented here
-            Text("Game Mappings View")
-                .frame(width: 400, height: 300)
+            MappingsListView(mappings: gameMappingManager.mappings)
         }
     }
     

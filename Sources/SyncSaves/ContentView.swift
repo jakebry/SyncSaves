@@ -20,7 +20,7 @@ struct DiscoveredGame: Identifiable {
     }
 }
 
-struct NewContentView: View {
+struct ContentView: View {
     @EnvironmentObject var syncManager: SyncManager
     @EnvironmentObject var settings: SettingsManager
     @EnvironmentObject var gameMappingManager: GameMappingManager
@@ -499,7 +499,7 @@ struct MatchSheetView: View {
 }
 
 #Preview {
-    NewContentView()
+    ContentView()
         .environmentObject(SyncManager())
         .environmentObject(SettingsManager())
         .environmentObject(GameMappingManager())
