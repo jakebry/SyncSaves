@@ -1,99 +1,47 @@
 # SyncSaves
 
-A multiplatform Swift/SwiftUI app for macOS and iOS that synchronizes save files on-demand across multiple gaming systems:
+SyncSaves is a zero-friction, native macOS and iOS utility designed to seamlessly synchronize Nintendo DS, Game Boy Advance (GBA), and Game Boy Color (GBC) save files across multiple emulation platforms.
 
-## Supported Systems
+It acts as a bridge between local emulators (like OpenEmu on macOS), cloud-synced mobile emulators (like Delta on iOS), and physical modded hardware (like a 3DS running TWiLight Menu++).
 
-1. **Nintendo DS** (.dsv ↔ .sav conversion)
-   - OpenEmu (.dsv format with 122-byte DeSmuME footer)
-   - iOS Delta (.sav format in Cloud folder)
-   - Modded 3DS (.sav format via FTP)
+## Core Features
 
-2. **Game Boy Advance** (.sav format)
-   - OpenEmu (mGBA core, raw .sav)
-   - iOS Delta (.sav format in Cloud folder)
+- **Zero-Friction Auto-Discovery**: SyncSaves automatically scans your configured emulator and cloud directories. It uses fuzzy-matching to detect and link your game save files across platforms without requiring manual filename entry.
+- **Format Translation**: Automatically handles format discrepancies between emulators. For example, it seamlessly strips the 122-byte DeSmuME footer from OpenEmu `.dsv` files when pushing to the cloud, and reconstructs it when pulling back to the Mac.
+- **Cross-Platform Syncing**: 
+  - **macOS (OpenEmu)**: Watches local save directories.
+  - **iOS (Delta)**: Syncs via your native iCloud or Dropbox folder.
+  - **Nintendo 3DS**: Pushes and pulls save data directly to your modded 3DS over local FTP.
+- **Native UI & Widgets**: Built entirely in Swift and SwiftUI. Includes a menu bar utility for quick access and WidgetKit support for monitoring sync status directly from your Notification Center or Home Screen.
 
-3. **Game Boy Color** (.sav format)
-   - OpenEmu (Gambatte core, raw .sav)
-   - iOS Delta (.sav format in Cloud folder)
+## Installation
 
-## How It Works
+1. Clone the repository to your local machine.
+2. Open `Package.swift` or the generated Xcode project in Xcode.
+3. Build and run the macOS or iOS target.
 
-### DS Files (Special Handling)
-OpenEmu's .dsv file is exactly the same as a raw .sav file, but it has a **122-byte DeSmuME footer** appended to the end.
+## Initial Setup
 
-The sync logic for DS:
-1. Checks modified timestamps across all locations
-2. Finds the newest file
-3. If newest is a .dsv: strips last 122 bytes → .sav → pushes to Cloud and 3DS
-4. If newest is a .sav: extracts 122-byte footer from existing OpenEmu .dsv → appends to .sav → overwrites OpenEmu .dsv
-5. Syncs all locations to the newest state
+Upon first launch, SyncSaves will guide you through a simple onboarding process:
+1. Select your local OpenEmu battery saves directory.
+2. Select your designated Cloud sync directory (e.g., a folder in iCloud Drive or Dropbox).
+3. (Optional) Provide the local IP address of your modded 3DS if you intend to use the FTP sync feature.
 
-### GBA/GBC Files (Simple Copy)
-OpenEmu's GBA/GBC cores output raw `.sav` files natively, so sync is straightforward:
-1. Check modified timestamps
-2. Find newest file
-3. Copy to other locations
+Once configured, the app will automatically scan both directories, link matching save files, and present a unified dashboard. A single "Sync All" button will resolve timestamp differences and update all locations to the most recent save state.
 
-## Features
+## Architecture
 
-- **Multiplatform**: macOS app + iOS app with shared codebase
-- **Widget Support**: WidgetKit widgets for both platforms
-- **Multi-system**: Configure separate paths for DS, GBA, and GBC
-- **On-demand Sync**: No background daemon
-- **Settings UI**: Configure all paths and FTP details
-
-## Project Structure
-
-```
-SyncSaves/
-├── Sources/
-│   ├── SyncSaves/           # Main app (macOS + iOS)
-│   │   ├── SyncSavesApp.swift
-│   │   ├── ContentView.swift
-│   │   └── SettingsView.swift
-│   ├── SyncSavesCore/       # Shared core logic
-│   │   ├── Models.swift
-│   │   ├── SettingsManager.swift
-│   │   └── SyncManager.swift
-│   └── SyncSavesWidget/     # Widget extension
-│       └── SyncSavesWidget.swift
-├── Tests/
-│   └── SyncSavesTests/
-└── Package.swift
-```
+- **SyncSavesCore**: The shared business logic module responsible for file scanning, fuzzy-matching, timestamp comparison, and byte-level file conversion.
+- **macOS App**: The primary configuration dashboard and sync engine.
+- **iOS App**: A companion app for monitoring sync status on the go.
+- **WidgetKit Extension**: Glanceable sync status widgets for both macOS and iOS.
 
 ## Requirements
 
 - macOS 14.0+ / iOS 17.0+
 - Xcode 15.0+
-- Swift 5.9+
+- For 3DS Sync: A modded 3DS running FTPD or a similar background FTP server.
 
-## Setup
+## License
 
-1. Open the project in Xcode
-2. Add Widget Extension target
-3. Set up App Groups for widget/main app communication
-4. Build and run
-
-## Configuration
-
-In the app settings, configure for each system:
-
-### All Systems
-- Game name (used to construct filenames)
-- OpenEmu save folder path
-- Cloud save folder path (for Delta iOS)
-
-### DS Only
-- 3DS FTP connection details (host, port, credentials)
-
-## Future Enhancements
-
-- Real FTP implementation (libcurl or Network framework)
-- App Groups for widget/main app communication
-- iCloud integration for settings sync
-- Multiple game support per system
-- Sync history and conflict resolution
-- Background sync via URLSession
-- Watch app companion
+This project is for personal use and educational purposes.
