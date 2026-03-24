@@ -12,7 +12,7 @@ struct SettingsView: View {
     @State private var ftpTestResult: String?
     @State private var isTestingFTP = false
     @State private var pickerType: PickerType = .openEmuDS
-    @State private var showingGameMappings = false
+    @State private var showingMappingsList = false
     
     enum PickerType {
         case openEmuDS, openEmuGBA, openEmuGBC
@@ -160,7 +160,7 @@ struct SettingsView: View {
                 Section("Game Mappings") {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("File Name Translations:")
+                            Text("Auto-Linked Games:")
                                 .font(.headline)
                             Spacer()
                             Text("\(gameMappingManager.mappings.count) mapping(s)")
@@ -168,12 +168,13 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
                         
-                        Text("Translate file names between OpenEmu and Cloud/3DS (e.g., 'Pokemon - White Version...dsv' → 'Pokemon White.sav')")
+                        Text("Games are automatically linked based on file name similarity. Manual matches can be made from the main screen.")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
-                        Button("Manage Game Mappings") {
-                            showingGameMappings = true
+                        Button("View All Mappings") {
+                            // Game mappings view would be shown here
+                            showingMappingsList = true
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
@@ -252,10 +253,10 @@ struct SettingsView: View {
         #if os(macOS)
         .frame(width: 500, height: 700)
         #endif
-        .sheet(isPresented: $showingGameMappings) {
-            GameMappingsView()
-                .environmentObject(gameMappingManager)
-                .environmentObject(settings)
+        .sheet(isPresented: $showingMappingsList) {
+            // Game mappings view would be implemented here
+            Text("Game Mappings View")
+                .frame(width: 400, height: 300)
         }
     }
     
@@ -297,6 +298,69 @@ struct SettingsView: View {
                 ftpTestResult = success ? 
                     "Successfully connected to \(settings.ftpHost)" :
                     "Failed to connect to \(settings.ftpHost)"
+            }
+        }
+    }
+    
+    private func showMappingsList() {
+        showingMappingsList = true
+    }
+}
+
+struct MappingsListView: View {
+    let mappings: [GameMapping]
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            if mappings.isEmpty {
+                VStack(spacing: 20) {
+                    Image(systemName: "link.slash")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray.opacity(0.5))
+                    
+                    Text("No Game Mappings")
+                        .font(.headline)
+                    
+                    Text("Games will be auto-linked when discovered")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                }
+                .frame(width: 400, height: 300)
+            } else {
+                List(mappings) { mapping in
+                    HStack(spacing: 16) {
+                        Image(systemName: "arrow.right")
+                            .foregroundColor(.blue)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(mapping.openEmuFileName)
+                                .font(.body)
+                            Text("→ \(mapping.cloudFileName)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Text(mapping.createdAt, style: .date)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listStyle(.plain)
+                .frame(width: 600, height: 400)
+            }
+        }
+        .navigationTitle("Game Mappings")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") {
+                    dismiss()
+                }
             }
         }
     }

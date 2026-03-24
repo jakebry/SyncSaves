@@ -299,7 +299,7 @@ struct NewContentView: View {
                 let linkedGames = discoveredGames.filter(\.isLinked)
                 
                 for game in linkedGames {
-                    guard let mapping = game.mapping else { continue }
+                    guard game.mapping != nil else { continue }
                     
                     // Update settings for this game temporarily
                     await MainActor.run {
