@@ -23,9 +23,17 @@ struct SettingsView: View {
     @State private var localFTPUsername: String = ""
     @State private var localFTPPassword: String = ""
     
+    // Focus state for TextFields
+    @FocusState private var focusedField: Field?
+    
     enum PickerType {
         case openEmuDS, openEmuGBA, openEmuGBC
         case cloudDS, cloudGBA, cloudGBC
+    }
+    
+    enum Field {
+        case dsGameName, gbaGameName, gbcGameName
+        case ftpHost, ftpPort, ftpUsername, ftpPassword
     }
     
     var body: some View {
@@ -45,18 +53,21 @@ struct SettingsView: View {
                             TextField("ds_game", text: $localDSGameName)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
+                                .focused($focusedField, equals: .dsGameName)
                         }
                         
                         LabeledContent("GBA Game Name:") {
                             TextField("gba_game", text: $localGBAGameName)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
+                                .focused($focusedField, equals: .gbaGameName)
                         }
                         
                         LabeledContent("GBC Game Name:") {
                             TextField("gbc_game", text: $localGBCGameName)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
+                                .focused($focusedField, equals: .gbcGameName)
                         }
                     }
                     .padding(.vertical, 4)
@@ -114,24 +125,28 @@ struct SettingsView: View {
                             TextField("192.168.1.x", text: $localFTPHost)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
+                                .focused($focusedField, equals: .ftpHost)
                         }
                         
                         LabeledContent("Port:") {
                             TextField("21", value: $localFTPPort, formatter: NumberFormatter())
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 80)
+                                .focused($focusedField, equals: .ftpPort)
                         }
                         
                         LabeledContent("Username:") {
                             TextField("username", text: $localFTPUsername)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
+                                .focused($focusedField, equals: .ftpUsername)
                         }
                         
                         LabeledContent("Password:") {
                             SecureField("password", text: $localFTPPassword)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
+                                .focused($focusedField, equals: .ftpPassword)
                         }
                         
                         HStack {
@@ -412,16 +427,40 @@ struct FolderPickerRow: View {
     let path: String
     let action: () -> Void
     
+    // Check if this path matches an auto-detected path
+    private var isAutoDetected: Bool {
+        let autoDetectedPaths = SettingsManager.autoDetectOpenEmuPaths()
+        return path == autoDetectedPaths.ds || path == autoDetectedPaths.gba || path == autoDetectedPaths.gbc
+    }
+    
     var body: some View {
         HStack {
             Text(title)
                 .frame(width: 100, alignment: .leading)
             
-            Text(path.isEmpty ? "Not set" : path)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            if path.isEmpty {
+                Text("Not set")
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack {
+                    Text(path)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    
+                    if isAutoDetected {
+                        Text("Auto-detected")
+                            .font(.caption2)
+                            .foregroundColor(.green)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green.opacity(0.1))
+                            .cornerRadius(4)
+                    }
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            }
             
             Button("Browse...", action: action)
         }

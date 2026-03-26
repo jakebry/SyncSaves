@@ -111,9 +111,13 @@ public class SettingsManager: ObservableObject {
         self.gbaGameName = UserDefaults.standard.string(forKey: Constants.gbaGameNameKey) ?? "gba_game"
         self.gbcGameName = UserDefaults.standard.string(forKey: Constants.gbcGameNameKey) ?? "gbc_game"
         
-        self.openEmuDSPath = UserDefaults.standard.string(forKey: Constants.openEmuDSPathKey) ?? ""
-        self.openEmuGBAPath = UserDefaults.standard.string(forKey: Constants.openEmuGBAPathKey) ?? ""
-        self.openEmuGBCPath = UserDefaults.standard.string(forKey: Constants.openEmuGBCPathKey) ?? ""
+        // Try to auto-detect OpenEmu paths first
+        let autoDetectedPaths = Self.autoDetectOpenEmuPaths()
+        
+        // Load saved paths or use auto-detected ones
+        self.openEmuDSPath = UserDefaults.standard.string(forKey: Constants.openEmuDSPathKey) ?? autoDetectedPaths.ds
+        self.openEmuGBAPath = UserDefaults.standard.string(forKey: Constants.openEmuGBAPathKey) ?? autoDetectedPaths.gba
+        self.openEmuGBCPath = UserDefaults.standard.string(forKey: Constants.openEmuGBCPathKey) ?? autoDetectedPaths.gbc
         
         self.cloudDSPath = UserDefaults.standard.string(forKey: Constants.cloudDSPathKey) ?? ""
         self.cloudGBAPath = UserDefaults.standard.string(forKey: Constants.cloudGBAPathKey) ?? ""
@@ -179,5 +183,52 @@ public class SettingsManager: ObservableObject {
         }
         
         return systems
+    }
+    
+    // MARK: - Auto-detection
+    
+    /// Auto-detects OpenEmu save paths for DS, GBA, and GBC systems
+    public static func autoDetectOpenEmuPaths() -> (ds: String, gba: String, gbc: String) {
+        let fileManager = FileManager.default
+        let homeDirectory = fileManager.homeDirectoryForCurrentUser
+        
+        // Base OpenEmu application support directory
+        let openEmuBase = homeDirectory.appendingPathComponent("Library/Application Support/OpenEmu")
+        
+        // Default paths for each system
+        let dsPath = openEmuBase.appendingPathComponent("DeSmuME/Battery Saves")
+        let gbaPath = openEmuBase.appendingPathComponent("VisualBoyAdvance/Battery Saves")
+        let gbcPath = openEmuBase.appendingPathComponent("Gambatte/Battery Saves")
+        
+        // Check if paths exist and return them
+        var detectedDS = ""
+        var detectedGBA = ""
+        var detectedGBC = ""
+        
+        if fileManager.fileExists(atPath: dsPath.path) {
+            detectedDS = dsPath.path
+        }
+        
+        if fileManager.fileExists(atPath: gbaPath.path) {
+            detectedGBA = gbaPath.path
+        }
+        
+        if fileManager.fileExists(atPath: gbcPath.path) {
+            detectedGBC = gbcPath.path
+        }
+        
+        return (detectedDS, detectedGBA, detectedGBC)
+    }
+    
+    /// Checks if OpenEmu paths were auto-detected (not manually set by user)
+    public var hasAutoDetectedOpenEmuPaths: Bool {
+        let autoDetected = Self.autoDetectOpenEmuPaths()
+        
+        // Check if current paths match auto-detected paths
+        let dsAutoDetected = !autoDetected.ds.isEmpty && openEmuDSPath == autoDetected.ds
+        let gbaAutoDetected = !autoDetected.gba.isEmpty && openEmuGBAPath == autoDetected.gba
+        let gbcAutoDetected = !autoDetected.gbc.isEmpty && openEmuGBCPath == autoDetected.gbc
+        
+        return dsAutoDetected || gbaAutoDetected || gbcAutoDetected
     }
 }

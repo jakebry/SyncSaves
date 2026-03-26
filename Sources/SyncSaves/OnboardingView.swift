@@ -16,7 +16,14 @@ struct OnboardingView: View {
     @State private var errorMessage: String?
     @State private var showError = false
     
+    // Focus state for TextField
+    @FocusState private var focusedField: Field?
+    
     private let totalSteps = 3
+    
+    enum Field {
+        case threeDSIPAddress
+    }
     
     var body: some View {
         VStack(spacing: 30) {
@@ -89,6 +96,18 @@ struct OnboardingView: View {
         } message: {
             Text(errorMessage ?? "An unknown error occurred")
         }
+        .onChange(of: showModded3DS) { oldValue, newValue in
+            if newValue {
+                // Focus the TextField when toggle is turned on
+                focusedField = .threeDSIPAddress
+            }
+        }
+        .onChange(of: currentStep) { oldStep, newStep in
+            if newStep == 2 && showModded3DS {
+                // Focus the TextField when we reach step 3 and toggle is on
+                focusedField = .threeDSIPAddress
+            }
+        }
     }
     
     private var step1View: some View {
@@ -101,14 +120,123 @@ struct OnboardingView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
             
-            Text("Select your OpenEmu save directory")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+            // Check if we have auto-detected paths
+            let autoDetectedPaths = SettingsManager.autoDetectOpenEmuPaths()
+            let hasAutoDetectedDS = !autoDetectedPaths.ds.isEmpty
+            let hasAutoDetectedGBA = !autoDetectedPaths.gba.isEmpty
+            let hasAutoDetectedGBC = !autoDetectedPaths.gbc.isEmpty
+            let hasAnyAutoDetected = hasAutoDetectedDS || hasAutoDetectedGBA || hasAutoDetectedGBC
+            
+            if hasAnyAutoDetected {
+                Text("OpenEmu save directories auto-detected!")
+                    .font(.body)
+                    .foregroundColor(.green)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    if hasAutoDetectedDS {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("DS: \(URL(fileURLWithPath: autoDetectedPaths.ds).lastPathComponent)")
+                                    .font(.caption)
+                                    .foregroundColor(.primary)
+                                Text(autoDetectedPaths.ds)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            Spacer()
+                            Text("Auto-detected")
+                                .font(.caption2)
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                        .padding()
+                        .background(Color.green.opacity(0.05))
+                        .cornerRadius(8)
+                    }
+                    
+                    if hasAutoDetectedGBA {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("GBA: \(URL(fileURLWithPath: autoDetectedPaths.gba).lastPathComponent)")
+                                    .font(.caption)
+                                    .foregroundColor(.primary)
+                                Text(autoDetectedPaths.gba)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            Spacer()
+                            Text("Auto-detected")
+                                .font(.caption2)
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                        .padding()
+                        .background(Color.green.opacity(0.05))
+                        .cornerRadius(8)
+                    }
+                    
+                    if hasAutoDetectedGBC {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("GBC: \(URL(fileURLWithPath: autoDetectedPaths.gbc).lastPathComponent)")
+                                    .font(.caption)
+                                    .foregroundColor(.primary)
+                                Text(autoDetectedPaths.gbc)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            Spacer()
+                            Text("Auto-detected")
+                                .font(.caption2)
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.green.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                        .padding()
+                        .background(Color.green.opacity(0.05))
+                        .cornerRadius(8)
+                    }
+                }
                 .padding(.horizontal, 40)
+                
+                Text("If these paths look correct, click Next. Otherwise, browse manually.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            } else {
+                Text("Select your OpenEmu save directory")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
             
             VStack(spacing: 12) {
-                if !settings.openEmuDSPath.isEmpty {
+                // Show current selected paths (if any)
+                if !settings.openEmuDSPath.isEmpty && !hasAutoDetectedDS {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
@@ -127,7 +255,7 @@ struct OnboardingView: View {
                 Button {
                     isImportingOpenEmu = true
                 } label: {
-                    Label("Select OpenEmu Directory", systemImage: "folder")
+                    Label(hasAnyAutoDetected ? "Browse Manually" : "Select OpenEmu Directory", systemImage: "folder")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
@@ -223,6 +351,7 @@ struct OnboardingView: View {
                         
                         TextField("192.168.1.100", text: $threeDSIPAddress)
                             .textFieldStyle(.roundedBorder)
+                            .focused($focusedField, equals: .threeDSIPAddress)
                         
                         Text("Make sure FTPD is running on your 3DS")
                             .font(.caption2)
@@ -237,7 +366,8 @@ struct OnboardingView: View {
     private var canProceed: Bool {
         switch currentStep {
         case 0:
-            return !settings.openEmuDSPath.isEmpty
+            // Allow proceeding if any OpenEmu path is set (DS, GBA, or GBC)
+            return !settings.openEmuDSPath.isEmpty || !settings.openEmuGBAPath.isEmpty || !settings.openEmuGBCPath.isEmpty
         case 1:
             return !settings.cloudDSPath.isEmpty
         case 2:
@@ -265,9 +395,21 @@ struct OnboardingView: View {
             defer { url.stopAccessingSecurityScopedResource() }
             
             let path = url.path
-            settings.openEmuDSPath = path
-            settings.openEmuGBAPath = path
-            settings.openEmuGBCPath = path
+            
+            // Check if this looks like a system-specific OpenEmu directory
+            let lastPathComponent = url.lastPathComponent.lowercased()
+            if lastPathComponent.contains("desmume") || lastPathComponent.contains("ds") {
+                settings.openEmuDSPath = path
+            } else if lastPathComponent.contains("visualboyadvance") || lastPathComponent.contains("gba") || lastPathComponent.contains("vba") {
+                settings.openEmuGBAPath = path
+            } else if lastPathComponent.contains("gambatte") || lastPathComponent.contains("gbc") || lastPathComponent.contains("gb") {
+                settings.openEmuGBCPath = path
+            } else {
+                // Generic directory - set all paths
+                settings.openEmuDSPath = path
+                settings.openEmuGBAPath = path
+                settings.openEmuGBCPath = path
+            }
             
         } catch {
             errorMessage = "Failed to select directory: \(error.localizedDescription)"
