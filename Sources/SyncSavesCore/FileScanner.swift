@@ -23,11 +23,23 @@ public class FileScanner: ObservableObject {
         do {
             let contents = try fileManager.contentsOfDirectory(atPath: expandedPath)
             let extensionToUse = location == .openEmu ? system.openEmuExtension : system.cloudExtension
+            
             let saveFiles = contents.filter { fileName in
-                fileName.lowercased().hasSuffix(".\(extensionToUse)")
+                // For OpenEmu location, only include files with the correct extension
+                if location == .openEmu {
+                    return fileName.lowercased().hasSuffix(".\(extensionToUse)")
+                }
+                
+                // For Cloud location, include:
+                // 1. Files with the correct extension (e.g., .sav)
+                // 2. Delta Emulator hash-based files: GameSave-[HASH]-gameSave (no extension)
+                let hasCorrectExtension = fileName.lowercased().hasSuffix(".\(extensionToUse)")
+                let isDeltaHashFile = fileName.hasPrefix("GameSave-") && fileName.hasSuffix("-gameSave")
+                
+                return hasCorrectExtension || isDeltaHashFile
             }
             
-            print("Info: Found \(saveFiles.count) \(system.displayName) save files in \(expandedPath) (looking for .\(extensionToUse))")
+            print("Info: Found \(saveFiles.count) \(system.displayName) save files in \(expandedPath) (looking for .\(extensionToUse) or Delta hash files)")
             return saveFiles.sorted()
         } catch {
             print("Error: Failed to scan directory \(expandedPath): \(error)")
