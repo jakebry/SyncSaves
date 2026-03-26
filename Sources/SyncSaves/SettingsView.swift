@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var isTestingFTP = false
     @State private var pickerType: PickerType = .openEmuDS
     @State private var showingMappingsList = false
+    @State private var showingResetWizardAlert = false
     
     // Local state for TextFields to prevent focus loss
     @State private var localDSGameName: String = ""
@@ -39,6 +40,83 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Storage Locations") {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Mac Save Directory (OpenEmu)")
+                            .font(.headline)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !settings.openEmuDSPath.isEmpty {
+                                StorageLocationRow(
+                                    system: "DS",
+                                    path: settings.openEmuDSPath,
+                                    action: { pickerType = .openEmuDS; showingOpenEmuPicker = true }
+                                )
+                            }
+                            
+                            if !settings.openEmuGBAPath.isEmpty {
+                                StorageLocationRow(
+                                    system: "GBA", 
+                                    path: settings.openEmuGBAPath,
+                                    action: { pickerType = .openEmuGBA; showingOpenEmuPicker = true }
+                                )
+                            }
+                            
+                            if !settings.openEmuGBCPath.isEmpty {
+                                StorageLocationRow(
+                                    system: "GBC",
+                                    path: settings.openEmuGBCPath,
+                                    action: { pickerType = .openEmuGBC; showingOpenEmuPicker = true }
+                                )
+                            }
+                            
+                            if settings.openEmuDSPath.isEmpty && settings.openEmuGBAPath.isEmpty && settings.openEmuGBCPath.isEmpty {
+                                Text("No OpenEmu directories configured")
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        Text("Cloud Save Directory")
+                            .font(.headline)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            if !settings.cloudDSPath.isEmpty {
+                                StorageLocationRow(
+                                    system: "DS",
+                                    path: settings.cloudDSPath,
+                                    action: { pickerType = .cloudDS; showingCloudPicker = true }
+                                )
+                            }
+                            
+                            if !settings.cloudGBAPath.isEmpty {
+                                StorageLocationRow(
+                                    system: "GBA",
+                                    path: settings.cloudGBAPath,
+                                    action: { pickerType = .cloudGBA; showingCloudPicker = true }
+                                )
+                            }
+                            
+                            if !settings.cloudGBCPath.isEmpty {
+                                StorageLocationRow(
+                                    system: "GBC",
+                                    path: settings.cloudGBCPath,
+                                    action: { pickerType = .cloudGBC; showingCloudPicker = true }
+                                )
+                            }
+                            
+                            if settings.cloudDSPath.isEmpty && settings.cloudGBAPath.isEmpty && settings.cloudGBCPath.isEmpty {
+                                Text("No cloud directories configured")
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+                
                 Section("Game Systems") {
                     Picker("Default System", selection: $settings.selectedSystem) {
                         ForEach(GameSystem.allCases) { system in
@@ -242,6 +320,24 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
                 }
+                
+                Section {
+                    Button("Re-run Initial Setup Wizard") {
+                        showingResetWizardAlert = true
+                    }
+                    .foregroundColor(.blue)
+                    .alert("Reset Setup Wizard", isPresented: $showingResetWizardAlert) {
+                        Button("Cancel", role: .cancel) { }
+                        Button("Reset", role: .destructive) {
+                            // Reset the setup flag
+                            UserDefaults.standard.set(false, forKey: "hasCompletedSetup")
+                            // Dismiss settings window
+                            dismiss()
+                        }
+                    } message: {
+                        Text("This will reset the setup wizard and close the settings window. You'll need to go through the initial setup again.")
+                    }
+                }
             }
             .formStyle(.grouped)
             .navigationTitle("Settings")
@@ -334,6 +430,12 @@ struct SettingsView: View {
                 case .cloudGBC:
                     settings.cloudGBCPath = url.path
                 }
+                
+                // Notify that paths have changed to trigger re-scan
+                NotificationCenter.default.post(
+                    name: SettingsManager.pathsDidChangeNotification,
+                    object: nil
+                )
             }
         case .failure(let error):
             print("Failed to select folder: \(error)")
@@ -419,6 +521,40 @@ struct MappingsListView: View {
                 }
             }
         }
+    }
+}
+
+struct StorageLocationRow: View {
+    let system: String
+    let path: String
+    let action: () -> Void
+    
+    var body: some View {
+        HStack(alignment: .top) {
+            Text(system)
+                .font(.caption)
+                .frame(width: 40, alignment: .leading)
+                .padding(.top, 2)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(URL(fileURLWithPath: path).lastPathComponent)
+                    .font(.caption)
+                    .foregroundColor(.primary)
+                Text(path)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            Button("Change...") {
+                action()
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
+        }
+        .padding(.vertical, 4)
     }
 }
 

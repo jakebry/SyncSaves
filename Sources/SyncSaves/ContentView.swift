@@ -166,6 +166,10 @@ struct ContentView: View {
             .onAppear {
                 scanForGames()
             }
+            .onReceive(NotificationCenter.default.publisher(for: SettingsManager.pathsDidChangeNotification)) { _ in
+                // Trigger re-scan when folder paths change
+                scanForGames()
+            }
         }
     }
     

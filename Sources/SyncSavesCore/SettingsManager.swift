@@ -2,6 +2,7 @@ import Foundation
 import Combine
 
 public class SettingsManager: ObservableObject {
+    public static let pathsDidChangeNotification = Notification.Name("SettingsManager.pathsDidChange")
     @Published public var selectedSystem: GameSystem {
         didSet { UserDefaults.standard.set(selectedSystem.rawValue, forKey: Constants.selectedSystemKey) }
     }
