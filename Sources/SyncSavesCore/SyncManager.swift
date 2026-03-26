@@ -11,7 +11,29 @@ public class SyncManager: ObservableObject {
     
     public init() {}
     
-    // Sync for a specific system
+    // Sync for a specific system with actual filenames
+    public func performSync(for system: GameSystem, openEmuFileName: String, cloudFileName: String? = nil) async throws {
+        guard !isSyncing else { return }
+        
+        isSyncing = true
+        defer { isSyncing = false }
+        
+        let settings = SettingsManager()
+        settings.selectedSystem = system
+        
+        // Update game name in settings based on actual OpenEmu filename
+        let baseName = (openEmuFileName as NSString).deletingPathExtension
+        switch system {
+        case .ds: settings.dsGameName = baseName
+        case .gba: settings.gbaGameName = baseName
+        case .gbc: settings.gbcGameName = baseName
+        }
+        
+        let result = try await performSystemSync(settings: settings, openEmuFileName: openEmuFileName, cloudFileName: cloudFileName)
+        lastSyncResults = [result]
+    }
+    
+    // Legacy sync for a specific system (uses settings.currentGameName)
     public func performSync(for system: GameSystem? = nil) async throws {
         guard !isSyncing else { return }
         
@@ -29,21 +51,28 @@ public class SyncManager: ObservableObject {
         
         for system in systemsToSync {
             settings.selectedSystem = system
-            let result = try await performSystemSync(settings: settings)
+            let result = try await performSystemSync(settings: settings, openEmuFileName: nil, cloudFileName: nil)
             results.append(result)
         }
         
         lastSyncResults = results
     }
     
-    private func performSystemSync(settings: SettingsManager) async throws -> SyncResult {
+    private func performSystemSync(settings: SettingsManager, openEmuFileName: String? = nil, cloudFileName: String? = nil) async throws -> SyncResult {
         let system = settings.selectedSystem
         
         // Check if all paths are configured for this system
-        guard let openEmuURL = settings.openEmuSaveURL(),
-              let cloudURL = settings.cloudSaveURL() else {
+        guard let openEmuBaseURL = settings.openEmuBaseURL(),
+              let cloudBaseURL = settings.cloudBaseURL() else {
             throw SyncError.pathNotConfigured("Paths not configured for \(system.displayName)")
         }
+        
+        // Use actual filenames if provided, otherwise construct from settings.currentGameName
+        let actualOpenEmuFileName = openEmuFileName ?? "\(settings.currentGameName).\(system.openEmuExtension)"
+        let actualCloudFileName = cloudFileName ?? "\(settings.currentGameName).\(system.cloudExtension)"
+        
+        let openEmuURL = openEmuBaseURL.appendingPathComponent(actualOpenEmuFileName)
+        let cloudURL = cloudBaseURL.appendingPathComponent(actualCloudFileName)
         
         // Apply file name translation using game mappings
         let translatedOpenEmuURL = applyFileNameTranslation(to: openEmuURL, for: system, from: .openEmu, to: .cloud)
@@ -143,6 +172,11 @@ public class SyncManager: ObservableObject {
             throw SyncError.unsupportedSystem("3DS sync only supported for DS")
         }
         
+        // Check if FTP is configured
+        guard !settings.ftpHost.isEmpty else {
+            throw SyncError.ftpConnectionFailed("FTP host not configured")
+        }
+        
         // Initialize FTP client
         ftpClient = FTPClient(
             host: settings.ftpHost,
@@ -163,6 +197,9 @@ public class SyncManager: ObservableObject {
             // Create a temporary URL for the file
             let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
                 .appendingPathComponent("\(settings.currentGameName)_3ds.\(settings.selectedSystem.cloudExtension)")
+            
+            // Actually download the file to the temp path
+            try await client.download(from: remotePath, to: tempURL.path)
             
             return SaveFile(
                 path: tempURL,
@@ -236,8 +273,12 @@ public class SyncManager: ObservableObject {
             try savData.write(to: translatedCloudURL)
         }
         
-        // Upload to 3DS via FTP
-        try await uploadTo3DS(data: savData, settings: settings)
+        // Upload to 3DS via FTP - make it optional
+        do {
+            try await uploadTo3DS(data: savData, settings: settings)
+        } catch {
+            print("Warning: Failed to upload to 3DS: \(error.localizedDescription). Continuing sync without 3DS.")
+        }
     }
     
     private func syncToOpenEmu(_ savFile: SaveFile, settings: SettingsManager) async throws {
@@ -296,30 +337,38 @@ public class SyncManager: ObservableObject {
                 // Update OpenEmu with name translation
                 try await syncToOpenEmu(newestFile, settings: settings)
                 
-                // Upload to 3DS
-                try await uploadTo3DS(data: data, settings: settings)
-                
-            case .threeDS:
-                // Download from 3DS and update other locations
-                let data = try await downloadFrom3DS(settings: settings)
-                
-                // Save to cloud with name translation
-                if let cloudURL = settings.cloudSaveURL() {
-                    let translatedCloudURL = applyFileNameTranslation(
-                        to: cloudURL,
-                        for: system,
-                        from: .threeDS,
-                        to: .cloud
-                    )
-                    try data.write(to: translatedCloudURL)
+                // Upload to 3DS - make it optional
+                do {
+                    try await uploadTo3DS(data: data, settings: settings)
+                } catch {
+                    print("Warning: Failed to upload to 3DS: \(error.localizedDescription). Continuing sync without 3DS.")
                 }
                 
-                // Update OpenEmu with name translation
-                let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-                    .appendingPathComponent("temp_3ds.sav")
-                try data.write(to: tempURL)
-                let tempFile = SaveFile(path: tempURL, modifiedDate: Date(), system: .ds, location: .threeDS)
-                try await syncToOpenEmu(tempFile, settings: settings)
+            case .threeDS:
+                // Download from 3DS and update other locations - make it optional
+                do {
+                    let data = try await downloadFrom3DS(settings: settings)
+                    
+                    // Save to cloud with name translation
+                    if let cloudURL = settings.cloudSaveURL() {
+                        let translatedCloudURL = applyFileNameTranslation(
+                            to: cloudURL,
+                            for: system,
+                            from: .threeDS,
+                            to: .cloud
+                        )
+                        try data.write(to: translatedCloudURL)
+                    }
+                    
+                    // Update OpenEmu with name translation
+                    let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                        .appendingPathComponent("temp_3ds.sav")
+                    try data.write(to: tempURL)
+                    let tempFile = SaveFile(path: tempURL, modifiedDate: Date(), system: .ds, location: .threeDS)
+                    try await syncToOpenEmu(tempFile, settings: settings)
+                } catch {
+                    print("Warning: Failed to download from 3DS: \(error.localizedDescription). Skipping 3DS sync step.")
+                }
             }
         } else {
             // GBA/GBC - already handled in handleSimpleSync
@@ -328,6 +377,11 @@ public class SyncManager: ObservableObject {
     
     private func uploadTo3DS(data: Data, settings: SettingsManager) async throws {
         guard settings.selectedSystem == .ds else { return }
+        
+        // Check if FTP is configured
+        guard !settings.ftpHost.isEmpty else {
+            throw SyncError.ftpConnectionFailed("FTP host not configured")
+        }
         
         guard let client = ftpClient ?? FTPClient(
             host: settings.ftpHost,
@@ -355,6 +409,11 @@ public class SyncManager: ObservableObject {
     private func downloadFrom3DS(settings: SettingsManager) async throws -> Data {
         guard settings.selectedSystem == .ds else {
             throw SyncError.unsupportedSystem("3DS download only for DS")
+        }
+        
+        // Check if FTP is configured
+        guard !settings.ftpHost.isEmpty else {
+            throw SyncError.ftpConnectionFailed("FTP host not configured")
         }
         
         guard let client = ftpClient ?? FTPClient(

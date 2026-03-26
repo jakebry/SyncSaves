@@ -317,8 +317,12 @@ struct ContentView: View {
                         }
                     }
                     
-                    // Perform sync for this game
-                    try await syncManager.performSync(for: game.system)
+                    // Perform sync for this game with actual filenames
+                    try await syncManager.performSync(
+                        for: game.system,
+                        openEmuFileName: game.openEmuFile,
+                        cloudFileName: game.cloudFile
+                    )
                 }
                 
                 await MainActor.run {

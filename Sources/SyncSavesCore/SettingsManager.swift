@@ -161,6 +161,19 @@ public class SettingsManager: ObservableObject {
         return URL(fileURLWithPath: path).appendingPathComponent("\(currentGameName).\(selectedSystem.cloudExtension)")
     }
     
+    // Helper methods to get base directory URLs (without filename)
+    func openEmuBaseURL() -> URL? {
+        guard !currentOpenEmuPath.isEmpty else { return nil }
+        let path = (currentOpenEmuPath as NSString).expandingTildeInPath
+        return URL(fileURLWithPath: path)
+    }
+    
+    func cloudBaseURL() -> URL? {
+        guard !currentCloudPath.isEmpty else { return nil }
+        let path = (currentCloudPath as NSString).expandingTildeInPath
+        return URL(fileURLWithPath: path)
+    }
+    
     func threeDSSavePath() -> String {
         // Only for DS system
         guard selectedSystem == .ds else { return "" }
