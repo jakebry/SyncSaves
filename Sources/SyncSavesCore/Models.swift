@@ -14,6 +14,18 @@ public enum GameSystem: String, CaseIterable, Identifiable {
         }
     }
     
+    public var openEmuExtension: String {
+        switch self {
+        case .ds: return "dsv"
+        case .gba, .gbc: return "sav"
+        }
+    }
+    
+    public var cloudExtension: String {
+        // Cloud directory (iOS/Delta) always uses .sav files
+        return "sav"
+    }
+    
     public var requiresFooterStripping: Bool {
         self == .ds
     }

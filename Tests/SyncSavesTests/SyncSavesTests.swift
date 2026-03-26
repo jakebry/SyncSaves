@@ -7,6 +7,14 @@ final class SyncSavesTests: XCTestCase {
         XCTAssertEqual(GameSystem.gba.fileExtension, "sav")
         XCTAssertEqual(GameSystem.gbc.fileExtension, "sav")
         
+        XCTAssertEqual(GameSystem.ds.openEmuExtension, "dsv")
+        XCTAssertEqual(GameSystem.gba.openEmuExtension, "sav")
+        XCTAssertEqual(GameSystem.gbc.openEmuExtension, "sav")
+        
+        XCTAssertEqual(GameSystem.ds.cloudExtension, "sav")
+        XCTAssertEqual(GameSystem.gba.cloudExtension, "sav")
+        XCTAssertEqual(GameSystem.gbc.cloudExtension, "sav")
+        
         XCTAssertTrue(GameSystem.ds.requiresFooterStripping)
         XCTAssertFalse(GameSystem.gba.requiresFooterStripping)
         XCTAssertFalse(GameSystem.gbc.requiresFooterStripping)

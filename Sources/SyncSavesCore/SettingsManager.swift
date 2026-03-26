@@ -151,19 +151,19 @@ public class SettingsManager: ObservableObject {
     func openEmuSaveURL() -> URL? {
         guard !currentOpenEmuPath.isEmpty, !currentGameName.isEmpty else { return nil }
         let path = (currentOpenEmuPath as NSString).expandingTildeInPath
-        return URL(fileURLWithPath: path).appendingPathComponent("\(currentGameName).\(selectedSystem.fileExtension)")
+        return URL(fileURLWithPath: path).appendingPathComponent("\(currentGameName).\(selectedSystem.openEmuExtension)")
     }
     
     func cloudSaveURL() -> URL? {
         guard !currentCloudPath.isEmpty, !currentGameName.isEmpty else { return nil }
         let path = (currentCloudPath as NSString).expandingTildeInPath
-        return URL(fileURLWithPath: path).appendingPathComponent("\(currentGameName).\(selectedSystem.fileExtension)")
+        return URL(fileURLWithPath: path).appendingPathComponent("\(currentGameName).\(selectedSystem.cloudExtension)")
     }
     
     func threeDSSavePath() -> String {
         // Only for DS system
         guard selectedSystem == .ds else { return "" }
-        return "/\(currentGameName).\(selectedSystem.fileExtension)"
+        return "/\(currentGameName).\(selectedSystem.cloudExtension)"
     }
     
     // Helper to get all configured systems

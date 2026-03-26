@@ -11,7 +11,7 @@ struct DiscoveredGame: Identifiable {
     let mapping: GameMapping?
     
     var displayName: String {
-        let baseName = openEmuFile.replacingOccurrences(of: ".\(system.fileExtension)", with: "")
+        let baseName = openEmuFile.replacingOccurrences(of: ".\(system.openEmuExtension)", with: "")
         return baseName.replacingOccurrences(of: "_", with: " ").capitalized
     }
     
@@ -305,7 +305,7 @@ struct ContentView: View {
                     await MainActor.run {
                         settings.selectedSystem = game.system
                         // We need to extract game name from filename
-                        let gameName = game.openEmuFile.replacingOccurrences(of: ".\(game.system.fileExtension)", with: "")
+                        let gameName = game.openEmuFile.replacingOccurrences(of: ".\(game.system.openEmuExtension)", with: "")
                         switch game.system {
                         case .ds: settings.dsGameName = gameName
                         case .gba: settings.gbaGameName = gameName

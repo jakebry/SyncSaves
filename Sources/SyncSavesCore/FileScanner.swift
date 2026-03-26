@@ -9,8 +9,9 @@ public class FileScanner: ObservableObject {
     /// - Parameters:
     ///   - directoryPath: Path to scan
     ///   - system: Game system to filter by
+    ///   - location: File location (OpenEmu or Cloud) to determine which extension to use
     /// - Returns: Array of save file names found
-    public func scanDirectory(_ directoryPath: String, for system: GameSystem) -> [String] {
+    public func scanDirectory(_ directoryPath: String, for system: GameSystem, location: FileLocation = .openEmu) -> [String] {
         guard !directoryPath.isEmpty else {
             print("Warning: Cannot scan empty directory path for \(system.displayName)")
             return []
@@ -21,11 +22,12 @@ public class FileScanner: ObservableObject {
         
         do {
             let contents = try fileManager.contentsOfDirectory(atPath: expandedPath)
+            let extensionToUse = location == .openEmu ? system.openEmuExtension : system.cloudExtension
             let saveFiles = contents.filter { fileName in
-                fileName.lowercased().hasSuffix(".\(system.fileExtension)")
+                fileName.lowercased().hasSuffix(".\(extensionToUse)")
             }
             
-            print("Info: Found \(saveFiles.count) \(system.displayName) save files in \(expandedPath)")
+            print("Info: Found \(saveFiles.count) \(system.displayName) save files in \(expandedPath) (looking for .\(extensionToUse))")
             return saveFiles.sorted()
         } catch {
             print("Error: Failed to scan directory \(expandedPath): \(error)")
@@ -43,8 +45,8 @@ public class FileScanner: ObservableObject {
             let openEmuPath = settings.openEmuPath(for: system)
             let cloudPath = settings.cloudPath(for: system)
             
-            let openEmuFiles = scanDirectory(openEmuPath, for: system)
-            let cloudFiles = scanDirectory(cloudPath, for: system)
+            let openEmuFiles = scanDirectory(openEmuPath, for: system, location: .openEmu)
+            let cloudFiles = scanDirectory(cloudPath, for: system, location: .cloud)
             
             if !openEmuFiles.isEmpty || !cloudFiles.isEmpty {
                 results[system] = (openEmuFiles, cloudFiles)
@@ -184,12 +186,14 @@ extension SettingsManager {
     }
     
     /// Detects the game system from a file name based on extension
-    func detectSystem(from fileName: String) -> GameSystem? {
+    func detectSystem(from fileName: String, location: FileLocation = .openEmu) -> GameSystem? {
         if fileName.lowercased().hasSuffix(".dsv") {
             return .ds
         } else if fileName.lowercased().hasSuffix(".sav") {
             // For .sav files, we need to check the directory to determine if it's GBA or GBC
             // This will be handled by the caller based on which directory the file was found in
+            // However, if we're in the cloud location, .sav could be DS, GBA, or GBC
+            // The caller should know which system they're scanning for
             return nil // Let caller determine based on context
         }
         return nil

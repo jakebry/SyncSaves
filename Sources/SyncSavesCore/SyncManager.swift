@@ -162,7 +162,7 @@ public class SyncManager: ObservableObject {
             
             // Create a temporary URL for the file
             let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("\(settings.currentGameName)_3ds.\(settings.selectedSystem.fileExtension)")
+                .appendingPathComponent("\(settings.currentGameName)_3ds.\(settings.selectedSystem.cloudExtension)")
             
             return SaveFile(
                 path: tempURL,

@@ -120,8 +120,9 @@ public func translateFileName(_ fileName: String, from source: FileLocation, to 
     /// Get all mappings for a specific game system
 public func mappings(for system: GameSystem) -> [GameMapping] {
         mappings.filter { mapping in
-            mapping.openEmuFileName.hasSuffix(".\(system.fileExtension)") ||
-            mapping.cloudFileName.hasSuffix(".\(system.fileExtension)")
+            // OpenEmu files use openEmuExtension, Cloud files use cloudExtension
+            mapping.openEmuFileName.hasSuffix(".\(system.openEmuExtension)") ||
+            mapping.cloudFileName.hasSuffix(".\(system.cloudExtension)")
         }
     }
     
