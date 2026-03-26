@@ -14,6 +14,15 @@ struct SettingsView: View {
     @State private var pickerType: PickerType = .openEmuDS
     @State private var showingMappingsList = false
     
+    // Local state for TextFields to prevent focus loss
+    @State private var localDSGameName: String = ""
+    @State private var localGBAGameName: String = ""
+    @State private var localGBCGameName: String = ""
+    @State private var localFTPHost: String = ""
+    @State private var localFTPPort: Int = 0
+    @State private var localFTPUsername: String = ""
+    @State private var localFTPPassword: String = ""
+    
     enum PickerType {
         case openEmuDS, openEmuGBA, openEmuGBC
         case cloudDS, cloudGBA, cloudGBC
@@ -33,19 +42,19 @@ struct SettingsView: View {
                     
                     VStack(alignment: .leading, spacing: 12) {
                         LabeledContent("DS Game Name:") {
-                            TextField("ds_game", text: $settings.dsGameName)
+                            TextField("ds_game", text: $localDSGameName)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
                         }
                         
                         LabeledContent("GBA Game Name:") {
-                            TextField("gba_game", text: $settings.gbaGameName)
+                            TextField("gba_game", text: $localGBAGameName)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
                         }
                         
                         LabeledContent("GBC Game Name:") {
-                            TextField("gbc_game", text: $settings.gbcGameName)
+                            TextField("gbc_game", text: $localGBCGameName)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
                         }
@@ -102,25 +111,25 @@ struct SettingsView: View {
                 Section("3DS FTP Configuration (DS Only)") {
                     VStack(alignment: .leading, spacing: 12) {
                         LabeledContent("Host:") {
-                            TextField("192.168.1.x", text: $settings.ftpHost)
+                            TextField("192.168.1.x", text: $localFTPHost)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
                         }
                         
                         LabeledContent("Port:") {
-                            TextField("21", value: $settings.ftpPort, formatter: NumberFormatter())
+                            TextField("21", value: $localFTPPort, formatter: NumberFormatter())
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 80)
                         }
                         
                         LabeledContent("Username:") {
-                            TextField("username", text: $settings.ftpUsername)
+                            TextField("username", text: $localFTPUsername)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
                         }
                         
                         LabeledContent("Password:") {
-                            SecureField("password", text: $settings.ftpPassword)
+                            SecureField("password", text: $localFTPPassword)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .frame(width: 200)
                         }
@@ -129,7 +138,7 @@ struct SettingsView: View {
                             Button("Test FTP Connection") {
                                 testFTPConnection()
                             }
-                            .disabled(isTestingFTP || settings.ftpHost.isEmpty)
+                            .disabled(isTestingFTP || localFTPHost.isEmpty)
                             
                             if isTestingFTP {
                                 ProgressView()
@@ -152,6 +161,14 @@ struct SettingsView: View {
                 Section {
                     Button("Reset to Defaults") {
                         settings.resetToDefaults()
+                        // Also reset local state
+                        localDSGameName = settings.dsGameName
+                        localGBAGameName = settings.gbaGameName
+                        localGBCGameName = settings.gbcGameName
+                        localFTPHost = settings.ftpHost
+                        localFTPPort = settings.ftpPort
+                        localFTPUsername = settings.ftpUsername
+                        localFTPPassword = settings.ftpPassword
                         ftpTestResult = nil
                     }
                     .foregroundColor(.red)
@@ -220,6 +237,14 @@ struct SettingsView: View {
                 #if os(iOS)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
+                        // Save local state back to settings
+                        settings.dsGameName = localDSGameName
+                        settings.gbaGameName = localGBAGameName
+                        settings.gbcGameName = localGBCGameName
+                        settings.ftpHost = localFTPHost
+                        settings.ftpPort = localFTPPort
+                        settings.ftpUsername = localFTPUsername
+                        settings.ftpPassword = localFTPPassword
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -228,6 +253,14 @@ struct SettingsView: View {
                 // macOS: Add prominent Done button at the bottom
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
+                        // Save local state back to settings
+                        settings.dsGameName = localDSGameName
+                        settings.gbaGameName = localGBAGameName
+                        settings.gbcGameName = localGBCGameName
+                        settings.ftpHost = localFTPHost
+                        settings.ftpPort = localFTPPort
+                        settings.ftpUsername = localFTPUsername
+                        settings.ftpPassword = localFTPPassword
                         dismiss()
                     }
                     .fontWeight(.semibold)
@@ -255,6 +288,16 @@ struct SettingsView: View {
         #endif
         .sheet(isPresented: $showingMappingsList) {
             MappingsListView(mappings: gameMappingManager.mappings)
+        }
+        .onAppear {
+            // Initialize local state from settings
+            localDSGameName = settings.dsGameName
+            localGBAGameName = settings.gbaGameName
+            localGBCGameName = settings.gbcGameName
+            localFTPHost = settings.ftpHost
+            localFTPPort = settings.ftpPort
+            localFTPUsername = settings.ftpUsername
+            localFTPPassword = settings.ftpPassword
         }
     }
     
@@ -292,10 +335,10 @@ struct SettingsView: View {
             
             await MainActor.run {
                 isTestingFTP = false
-                let success = !settings.ftpHost.isEmpty && settings.ftpHost.contains(".")
+                let success = !localFTPHost.isEmpty && localFTPHost.contains(".")
                 ftpTestResult = success ? 
-                    "Successfully connected to \(settings.ftpHost)" :
-                    "Failed to connect to \(settings.ftpHost)"
+                    "Successfully connected to \(localFTPHost)" :
+                    "Failed to connect to \(localFTPHost)"
             }
         }
     }

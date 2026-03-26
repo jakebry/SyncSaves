@@ -223,9 +223,6 @@ struct OnboardingView: View {
                         
                         TextField("192.168.1.100", text: $threeDSIPAddress)
                             .textFieldStyle(.roundedBorder)
-                            .onChange(of: threeDSIPAddress) {
-                                settings.ftpHost = threeDSIPAddress
-                            }
                         
                         Text("Make sure FTPD is running on your 3DS")
                             .font(.caption2)
