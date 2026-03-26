@@ -199,6 +199,8 @@ public class SettingsManager: ObservableObject {
         return systems
     }
     
+
+    
     // MARK: - Auto-detection
     
     /// Auto-detects OpenEmu save paths for DS, GBA, and GBC systems

@@ -180,7 +180,7 @@ public class FileScanner: ObservableObject {
 // MARK: - SettingsManager Extensions
 extension SettingsManager {
     /// Gets the OpenEmu path for a specific system
-    func openEmuPath(for system: GameSystem) -> String {
+    public func openEmuPath(for system: GameSystem) -> String {
         switch system {
         case .ds: return openEmuDSPath
         case .gba: return openEmuGBAPath
@@ -189,7 +189,7 @@ extension SettingsManager {
     }
     
     /// Gets the Cloud path for a specific system
-    func cloudPath(for system: GameSystem) -> String {
+    public func cloudPath(for system: GameSystem) -> String {
         switch system {
         case .ds: return cloudDSPath
         case .gba: return cloudGBAPath

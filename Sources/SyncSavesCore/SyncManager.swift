@@ -33,6 +33,29 @@ public class SyncManager: ObservableObject {
         lastSyncResults = [result]
     }
     
+    // Sync for a specific system with full file paths
+    public func performSync(for system: GameSystem, openEmuFilePath: String, cloudFilePath: String) async throws {
+        guard !isSyncing else { return }
+        
+        isSyncing = true
+        defer { isSyncing = false }
+        
+        let settings = SettingsManager()
+        settings.selectedSystem = system
+        
+        // Extract game name from OpenEmu file path for settings
+        let openEmuFileName = (openEmuFilePath as NSString).lastPathComponent
+        let baseName = (openEmuFileName as NSString).deletingPathExtension
+        switch system {
+        case .ds: settings.dsGameName = baseName
+        case .gba: settings.gbaGameName = baseName
+        case .gbc: settings.gbcGameName = baseName
+        }
+        
+        let result = try await performSystemSyncWithPaths(settings: settings, openEmuFilePath: openEmuFilePath, cloudFilePath: cloudFilePath)
+        lastSyncResults = [result]
+    }
+    
     // Legacy sync for a specific system (uses settings.currentGameName)
     public func performSync(for system: GameSystem? = nil) async throws {
         guard !isSyncing else { return }
@@ -116,6 +139,61 @@ public class SyncManager: ObservableObject {
         
         // Update all locations to newest state
         try await updateAllLocations(with: newestFile, settings: settings)
+        
+        return SyncResult(
+            success: true,
+            message: "Successfully synchronized \(system.displayName) saves",
+            timestamp: Date(),
+            filesSynced: saveFiles,
+            system: system
+        )
+    }
+    
+    private func performSystemSyncWithPaths(settings: SettingsManager, openEmuFilePath: String, cloudFilePath: String) async throws -> SyncResult {
+        let system = settings.selectedSystem
+        
+        // Create URLs from the full file paths
+        let openEmuURL = URL(fileURLWithPath: openEmuFilePath)
+        let cloudURL = URL(fileURLWithPath: cloudFilePath)
+        
+        // Collect all save files with their modification dates
+        var saveFiles: [SaveFile] = []
+        
+        // Check OpenEmu file
+        if let openEmuFile = await getSaveFile(at: openEmuURL, system: system, location: .openEmu) {
+            saveFiles.append(openEmuFile)
+        }
+        
+        // Check Cloud file
+        if let cloudFile = await getSaveFile(at: cloudURL, system: system, location: .cloud) {
+            saveFiles.append(cloudFile)
+        }
+        
+        // Check 3DS file via FTP (only for DS)
+        if system == .ds, let threeDSFile = try? await get3DSSaveFile(settings: settings) {
+            saveFiles.append(threeDSFile)
+        }
+        
+        guard !saveFiles.isEmpty else {
+            throw SyncError.fileNotFound("No save files found for \(system.displayName)")
+        }
+        
+        // Find the newest file
+        guard let newestFile = saveFiles.max(by: { $0.modifiedDate < $1.modifiedDate }) else {
+            throw SyncError.fileOperationFailed("Could not determine newest file for \(system.displayName)")
+        }
+        
+        // Perform sync based on system and file type
+        if system.requiresFooterStripping {
+            // DS system with footer handling
+            try await handleDSSyncWithPaths(newestFile, openEmuURL: openEmuURL, cloudURL: cloudURL, settings: settings)
+        } else {
+            // GBA/GBC - straightforward copy
+            try await handleSimpleSyncWithPaths(newestFile, openEmuURL: openEmuURL, cloudURL: cloudURL, settings: settings)
+        }
+        
+        // Update all locations to newest state
+        try await updateAllLocationsWithPaths(newestFile, openEmuURL: openEmuURL, cloudURL: cloudURL, settings: settings)
         
         return SyncResult(
             success: true,
@@ -436,6 +514,132 @@ public class SyncManager: ObservableObject {
         try? fileManager.removeItem(at: tempURL)
         
         return data
+    }
+    
+    // MARK: - New helper methods for full path sync
+    
+    private func handleDSSyncWithPaths(_ newestFile: SaveFile, openEmuURL: URL, cloudURL: URL, settings: SettingsManager) async throws {
+        switch newestFile.location {
+        case .openEmu:
+            // OpenEmu .dsv → strip footer → .sav
+            try await syncFromOpenEmuWithPaths(newestFile, cloudURL: cloudURL, settings: settings)
+        case .cloud, .threeDS:
+            // .sav → read existing OpenEmu footer → append → .dsv
+            try await syncToOpenEmuWithPaths(newestFile, openEmuURL: openEmuURL, settings: settings)
+        }
+    }
+    
+    private func handleSimpleSyncWithPaths(_ newestFile: SaveFile, openEmuURL: URL, cloudURL: URL, settings: SettingsManager) async throws {
+        // For GBA/GBC, just copy the newest file to other locations
+        let data = try Data(contentsOf: newestFile.path)
+        
+        // Copy to all other locations
+        if newestFile.location != .openEmu {
+            try data.write(to: openEmuURL)
+        }
+        
+        if newestFile.location != .cloud {
+            try data.write(to: cloudURL)
+        }
+        
+        // Note: 3DS sync not supported for GBA/GBC
+    }
+    
+    private func updateAllLocationsWithPaths(_ newestFile: SaveFile, openEmuURL: URL, cloudURL: URL, settings: SettingsManager) async throws {
+        let system = settings.selectedSystem
+        
+        if system.requiresFooterStripping {
+            // DS system
+            switch newestFile.location {
+            case .openEmu:
+                // Already handled in syncFromOpenEmuWithPaths
+                break
+            case .cloud:
+                // Copy to other locations
+                let data = try Data(contentsOf: newestFile.path)
+                
+                // Update OpenEmu
+                try await syncToOpenEmuWithPaths(newestFile, openEmuURL: openEmuURL, settings: settings)
+                
+                // Upload to 3DS - make it optional
+                do {
+                    try await uploadTo3DS(data: data, settings: settings)
+                } catch {
+                    print("Warning: Failed to upload to 3DS: \(error.localizedDescription). Continuing sync without 3DS.")
+                }
+                
+            case .threeDS:
+                // Download from 3DS and update other locations - make it optional
+                do {
+                    let data = try await downloadFrom3DS(settings: settings)
+                    
+                    // Save to cloud
+                    try data.write(to: cloudURL)
+                    
+                    // Update OpenEmu
+                    let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                        .appendingPathComponent("temp_3ds.sav")
+                    try data.write(to: tempURL)
+                    let tempFile = SaveFile(path: tempURL, modifiedDate: Date(), system: .ds, location: .threeDS)
+                    try await syncToOpenEmuWithPaths(tempFile, openEmuURL: openEmuURL, settings: settings)
+                } catch {
+                    print("Warning: Failed to download from 3DS: \(error.localizedDescription). Skipping 3DS sync step.")
+                }
+            }
+        } else {
+            // GBA/GBC - already handled in handleSimpleSyncWithPaths
+        }
+    }
+    
+    private func syncFromOpenEmuWithPaths(_ openEmuFile: SaveFile, cloudURL: URL, settings: SettingsManager) async throws {
+        // OpenEmu .dsv → strip footer → .sav
+        let dsvData = try Data(contentsOf: openEmuFile.path)
+        
+        guard dsvData.count > Constants.desmumeFooterSize else {
+            throw SyncError.invalidSaveFile("DSV file too small to contain footer")
+        }
+        
+        // Strip the last 122 bytes (DeSmuME footer)
+        let savData = dsvData.prefix(dsvData.count - Constants.desmumeFooterSize)
+        
+        // Save to cloud (direct path, no translation needed)
+        try savData.write(to: cloudURL)
+        
+        // Upload to 3DS via FTP - make it optional
+        do {
+            try await uploadTo3DS(data: savData, settings: settings)
+        } catch {
+            print("Warning: Failed to upload to 3DS: \(error.localizedDescription). Continuing sync without 3DS.")
+        }
+    }
+    
+    private func syncToOpenEmuWithPaths(_ savFile: SaveFile, openEmuURL: URL, settings: SettingsManager) async throws {
+        // .sav → read existing OpenEmu footer → append → .dsv
+        
+        // Read the .sav data
+        let savData = try Data(contentsOf: savFile.path)
+        
+        // Check if existing OpenEmu .dsv exists
+        if fileManager.fileExists(atPath: openEmuURL.path) {
+            // Extract footer from existing .dsv
+            let existingDSVData = try Data(contentsOf: openEmuURL)
+            
+            guard existingDSVData.count >= Constants.desmumeFooterSize else {
+                throw SyncError.invalidSaveFile("Existing DSV file too small")
+            }
+            
+            // Extract the last 122 bytes as footer
+            let footer = existingDSVData.suffix(Constants.desmumeFooterSize)
+            
+            // Create new .dsv with .sav data + existing footer
+            let newDSVData = savData + footer
+            try newDSVData.write(to: openEmuURL)
+        } else {
+            // If no existing .dsv, create one with empty footer
+            let emptyFooter = Data(count: Constants.desmumeFooterSize)
+            let dsvData = savData + emptyFooter
+            try dsvData.write(to: openEmuURL)
+        }
     }
 }
 

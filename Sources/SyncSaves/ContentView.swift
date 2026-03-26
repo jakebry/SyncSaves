@@ -303,25 +303,17 @@ struct ContentView: View {
                 let linkedGames = discoveredGames.filter(\.isLinked)
                 
                 for game in linkedGames {
-                    guard game.mapping != nil else { continue }
+                    guard let cloudFile = game.cloudFile else { continue }
                     
-                    // Update settings for this game temporarily
-                    await MainActor.run {
-                        settings.selectedSystem = game.system
-                        // We need to extract game name from filename
-                        let gameName = game.openEmuFile.replacingOccurrences(of: ".\(game.system.openEmuExtension)", with: "")
-                        switch game.system {
-                        case .ds: settings.dsGameName = gameName
-                        case .gba: settings.gbaGameName = gameName
-                        case .gbc: settings.gbcGameName = gameName
-                        }
-                    }
+                    // Build full file paths
+                    let openEmuFilePath = (settings.openEmuPath(for: game.system) as NSString).expandingTildeInPath + "/" + game.openEmuFile
+                    let cloudFilePath = (settings.cloudPath(for: game.system) as NSString).expandingTildeInPath + "/" + cloudFile
                     
-                    // Perform sync for this game with actual filenames
+                    // Perform sync for this game with full file paths
                     try await syncManager.performSync(
                         for: game.system,
-                        openEmuFileName: game.openEmuFile,
-                        cloudFileName: game.cloudFile
+                        openEmuFilePath: openEmuFilePath,
+                        cloudFilePath: cloudFilePath
                     )
                 }
                 
